@@ -2,9 +2,9 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 
-type Mode = "chat" | "agent";
+type Mode = "chat" | "agent" | "board";
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -68,13 +68,20 @@ export function ChatApp() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const modeRef = useRef(mode);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
-        body: { mode },
+        fetch: async (input, init) => {
+          const existing = JSON.parse((init?.body as string) ?? "{}");
+          existing.mode = modeRef.current;
+          return fetch(input, { ...init, body: JSON.stringify(existing) });
+        },
       }),
-    [mode],
+    [],
   );
 
   const { messages, sendMessage, status, error, stop } = useChat({ transport });
@@ -116,13 +123,17 @@ export function ChatApp() {
         <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-medium uppercase tracking-wider text-[#FF5C28]">
-              Hackathon Starter
+              {mode === "board" ? "Wayfair Partner Board" : "Hackathon Starter"}
             </p>
             <h1 className="text-xl font-semibold tracking-tight text-white">
-              Chat + Agents on Subconscious
+              {mode === "board"
+                ? "Priya & Arun's Sofa Shortlist"
+                : "Chat + Agents on Subconscious"}
             </h1>
             <p className="mt-1 text-sm text-zinc-400">
-              Wayfair · Subconscious · Baseten · Cloudflare
+              {mode === "board"
+                ? "Living room · 14×18ft · mid-century modern · budget $1,200"
+                : "Wayfair · Subconscious · Baseten · Cloudflare"}
             </p>
           </div>
 
@@ -149,6 +160,17 @@ export function ChatApp() {
             >
               Agent
             </button>
+            <button
+              type="button"
+              onClick={() => setMode("board")}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                mode === "board"
+                  ? "bg-[#FF5C28] text-black"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              Board
+            </button>
           </div>
         </div>
       </header>
@@ -165,12 +187,19 @@ export function ChatApp() {
               </code>
               ).
             </p>
-          ) : (
+          ) : mode === "agent" ? (
             <p>
               <span className="font-medium text-[#FF5C28]">Agent mode</span> —
               long-running multi-step agent with web search, background tasks, and
               MCP tool stubs. Kick off research and let it run up to 30 tool
               steps.
+            </p>
+          ) : (
+            <p>
+              <span className="font-medium text-[#FF5C28]">Board mode</span> —
+              Priya &amp; Arun&apos;s shared sofa shortlist. Ask for the joint
+              briefing, log a reaction, or update a status. The board is
+              pre-seeded with their Langley, Nora, and Haven reactions.
             </p>
           )}
         </div>
@@ -178,18 +207,36 @@ export function ChatApp() {
         <div className="flex-1 space-y-4 overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
           {messages.length === 0 && (
             <div className="flex h-full min-h-[320px] flex-col items-center justify-center text-center text-zinc-500">
-              <p className="text-lg font-medium text-zinc-200">
-                Try something to get started
-              </p>
-              <ul className="mt-4 max-w-md space-y-2 text-sm">
-                <li>“What&apos;s the weather in Boston?”</li>
-                <li>“Calculate (17 * 23) + 100”</li>
-                <li>Attach a screenshot and ask what you see</li>
-                <li>
-                  Switch to Agent: “Research hackathon project ideas for retail
-                  AI”
-                </li>
-              </ul>
+              {mode === "board" ? (
+                <>
+                  <p className="text-lg font-medium text-zinc-200">
+                    Priya &amp; Arun&apos;s Sofa Shortlist
+                  </p>
+                  <p className="mt-2 text-sm text-zinc-500">
+                    Langley · Nora · Haven — reactions from both partners already logged
+                  </p>
+                  <ul className="mt-4 max-w-md space-y-2 text-sm">
+                    <li>&ldquo;Give me the joint briefing&rdquo;</li>
+                    <li>&ldquo;I&apos;m Arun — I have a question about the Langley fabric&rdquo;</li>
+                    <li>&ldquo;What&apos;s still unresolved?&rdquo;</li>
+                    <li>&ldquo;Mark the Nora as ruled out — too plain&rdquo;</li>
+                  </ul>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg font-medium text-zinc-200">
+                    Try something to get started
+                  </p>
+                  <ul className="mt-4 max-w-md space-y-2 text-sm">
+                    <li>&quot;What&apos;s the weather in Boston?&quot;</li>
+                    <li>&quot;Calculate (17 * 23) + 100&quot;</li>
+                    <li>Attach a screenshot and ask what you see</li>
+                    <li>
+                      Switch to Agent: &quot;Research hackathon project ideas for retail AI&quot;
+                    </li>
+                  </ul>
+                </>
+              )}
             </div>
           )}
 
@@ -229,7 +276,11 @@ export function ChatApp() {
           {isBusy && (
             <div className="flex items-center gap-2 text-sm text-zinc-400">
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#FF5C28]" />
-              {mode === "agent" ? "Agent running…" : "Thinking…"}
+              {mode === "agent"
+                ? "Agent running…"
+                : mode === "board"
+                  ? "Checking the board…"
+                  : "Thinking…"}
             </div>
           )}
         </div>
@@ -283,9 +334,11 @@ export function ChatApp() {
               value={input}
               onChange={(event) => setInput(event.target.value)}
               placeholder={
-                mode === "agent"
-                  ? "Kick off a long-running agent task…"
-                  : "Send a message…"
+                mode === "board"
+                  ? "Ask for a briefing, log a reaction, update a status…"
+                  : mode === "agent"
+                    ? "Kick off a long-running agent task…"
+                    : "Send a message…"
               }
               className="flex-1 rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-[#FF5C28] focus:ring-2 focus:ring-[#FF5C28]/30"
               disabled={isBusy}
